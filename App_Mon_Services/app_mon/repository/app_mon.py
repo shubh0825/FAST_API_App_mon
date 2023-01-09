@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Union
-import models, schemas, database
+import models, schemas
 from fastapi import status, HTTPException, Query
 from datetime import datetime
 from fastapi.responses import JSONResponse
@@ -21,7 +21,7 @@ def get_all(db:Session, from_date:Union[str,None] = None , to_date:Union[str,Non
             app = app.filter(Q.date.between(dt_str,datetime.now()))
             rows=app.count()  
         except:
-            return HTTPException(status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,detail = f"Incorrect data format, should be YYYY-MM-DD",headers={"X-Error": "There goes my error"})
+            return HTTPException(status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,detail = f"Incorrect date format, should be YYYY-MM-DD",headers={"X-Error": "There goes my error"})
     if to_date:
         try:
             to_dt_obj = datetime.strptime(to_date,"%Y-%m-%d %H:%M:%S")
@@ -29,7 +29,7 @@ def get_all(db:Session, from_date:Union[str,None] = None , to_date:Union[str,Non
             app = app.filter(Q.date <= t_str)
             rows=app.count()  
         except:
-            return HTTPException(status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,detail = f"Incorrect data format, should be YYYY-MM-DD",headers={"X-Error": "There goes my error"})
+            return HTTPException(status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,detail = f"Incorrect date format, should be YYYY-MM-DD",headers={"X-Error": "There goes my error"})
     if dt_str and t_str: 
         app = app.filter(Q.date.between(dt_str,t_str))
         rows=app.count()    
@@ -40,16 +40,17 @@ def get_all(db:Session, from_date:Union[str,None] = None , to_date:Union[str,Non
     return JSONResponse(({'status':'success','error_code': 0,'data':jsonable_encoder(app),'limit':limit,'offset':offset,'total_records':rows,'from_date':from_date,'to_date':to_date}))
         
 def create(db:Session,request: schemas.app_mon):
-    new_app = models.app_mon(app_name = request.app_name, app_key=request.app_key)
+    new_app = models.app_mon(app_name = request.app_name, app_key=request.app_key, monitor_interval = request.monitor_interval,\
+        initial_alert_time = request.initial_alert_time, repeated_alert_time = request.repeated_alert_time)
     db.add(new_app)
     db.commit()
     db.refresh(new_app)
     return JSONResponse(status_code=200, content={"message": "Data Stored Succesfully"})
- 
+
 def destroy(id:int,db:Session):
     app = db.query(models.app_mon).filter(models.app_mon.app_id == id)
     if not app.first():
-        return JSONResponse(status_code = status.HTTP_404_NOT_FOUND,detail = f"App name with id {id} not found",headers={"X-Error": "There goes my error"})
+        return HTTPException(status_code = status.HTTP_404_NOT_FOUND,detail = f"App name with id {id} not found",headers={"X-Error": "There goes my error"})
     app.update({models.app_mon.status:"n"})
     db.commit()
     return JSONResponse(content={"MESSAGE":"Remove Data Successfully"})
@@ -57,7 +58,7 @@ def destroy(id:int,db:Session):
 def update(id:int,db:Session,request: schemas.app_mon):
     app = db.query(models.app_mon).filter(models.app_mon.app_id == id)
     if not app.first():
-        return JSONResponse(status_code = status.HTTP_404_NOT_FOUND,detail = f"App name with id {id} not found")
+        return HTTPException(status_code = status.HTTP_404_NOT_FOUND,detail = f"App name with id {id} not found")
     app.update(request.dict())
     db.commit()
     return JSONResponse(content={"MESSAGE":"Data Updated Successfully"},status_code=200)
@@ -65,5 +66,6 @@ def update(id:int,db:Session,request: schemas.app_mon):
 def show(id:int,db:Session):
     app = db.query(models.app_mon).filter(models.app_mon.app_id == id).first()
     if not app:
-        return JSONResponse(status_code = status.HTTP_404_NOT_FOUND,detail=f'App name with the id {id} is not Available' )
-    return app
+        return JSONResponse(status_code = status.HTTP_404_NOT_FOUND,detail=f'App name with the id {id} is not Found' )
+    app = jsonable_encoder(app)
+    return JSONResponse(({'status':'success','error_code': 0,'data':jsonable_encoder(app)}))
